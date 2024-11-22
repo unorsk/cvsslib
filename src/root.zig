@@ -60,6 +60,7 @@ const Cvss31Metric = struct {
 
 const CvssParseError = error{
     NotCVSSString,
+    UnknownMetricValue,
 };
 
 const Cvss31Decl: []const Cvss31MetricDecl = &.{
@@ -87,38 +88,44 @@ const Cvss31Decl: []const Cvss31MetricDecl = &.{
     .{ .metricType = Cvss31MetricType.MA, .metricTypeValue = "MA", .required = false, .possibleValues = &.{ "X", "N", "L", "H" } },
 };
 
+fn eql(comptime T: type, a: []const T, b: []const T, i: usize) bool {
+    return std.mem.eql(T, a[i..(i + b.len)], b);
+}
+
 fn parse_cvss31_metrics(cvss: []const u8) ![]Cvss31Metric {
-    // fn parse_cvss31_metrics(cvss: []const u8) !void {
     var metrics = std.ArrayList(Cvss31Metric).init(std.heap.page_allocator);
-    // const metricsA = [_]Cvss31Metric{};
 
     var i: usize = 0;
     while (i < cvss.len) {
-        // var metricType: Cvss31MetricType = undefined;
-
+        var metricType: Cvss31MetricType = undefined;
         for (Cvss31Decl) |decl| {
-            if (std.mem.eql(u8, cvss[i..], decl.metricTypeValue)) {
+            if (eql(u8, cvss, decl.metricTypeValue, i)) {
+                metricType = decl.metricType;
                 i += decl.metricTypeValue.len;
+                // todo read the colon
                 i += 1; // skip the colon
 
-                var value: []const u8 = undefined;
+                var value: []const u8 = "";
                 for (0..(decl.possibleValues.len - 1)) |j| {
-                    value = decl.possibleValues[j];
-                    if (std.mem.eql(u8, cvss[i..], decl.possibleValues[j])) {
-                        try metrics.append(.{ .metricType = decl.metricType, .value = value });
+                    if (eql(u8, cvss, decl.possibleValues[j], i)) {
+                        value = decl.possibleValues[j];
+                        try metrics.append(.{ .metricType = metricType, .value = value });
+                        i += value.len;
                         break;
                     }
                 }
-                // if (value == undefined) {
-                //     return CvssParseError.NotCVSSString;
-                // }
+                if (value.len == 0) {
+                    return CvssParseError.UnknownMetricValue;
+                }
+                break;
             }
         }
 
-        // if (metricType == undefined) {
-        //     return CvssParseError.NotCVSSString;
-        // }
+        if (metricType == undefined) {
+            return CvssParseError.NotCVSSString;
+        }
 
+        // todo consume "/"
         i += 1;
         // i += value.len;
     }
@@ -148,12 +155,15 @@ test "parse simple AV metric" {
     const cvss = "AV:N";
     const metrics = try parse_cvss31_metrics(cvss);
     std.debug.print("size: {}\n", .{metrics.len});
-    // std.debug.print("val {}\n", .{metrics[0].metricType});
-    // std.debug.print("val {}\n", .{metrics[1].metricType});
-    // std.debug.print("{}\n", .{metrics});
     try testing.expect(metrics.len == 1);
     try testing.expect(metrics[0].metricType == Cvss31MetricType.AV);
     try testing.expect(std.mem.eql(u8, metrics[0].value, "N"));
+}
+
+test "parse simple AV metric unknown value" {
+    const cvss = "AV:Z";
+    const err = parse_cvss31_metrics(cvss);
+    try testing.expectError(CvssParseError.UnknownMetricValue, err);
 }
 
 test "detect_cvss_version" {
