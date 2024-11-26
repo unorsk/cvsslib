@@ -62,6 +62,9 @@ const Cvss31Metric = struct {
 const CvssParseError = error{
     NotCVSSString,
     UnknownMetricValue,
+    UnknownMetricName,
+    DuplicateMetric,
+    MissingRequiredMetrics,
 };
 
 // zig fmt: off
@@ -98,52 +101,55 @@ fn eql(comptime T: type, a: []const T, b: []const T, i: usize) bool {
 fn parse_cvss31_metrics(cvss: []const u8) ![]Cvss31Metric {
     var metrics = std.ArrayList(Cvss31Metric).init(std.heap.page_allocator);
 
-    var it = std.mem.tokenizeScalar(u8, cvss, ' ');
-    while (it.next()) |token| {
-        std.debug.print("token: {s}\n", .{token});
-        var itMetric = std.mem.tokenizeScalar(u8, token, ':');
-        const metricType = itMetric.next();
-        if (metricType == null) {
+    const copyCvss31Decl = try std.heap.page_allocator.dupe(Cvss31MetricDecl, Cvss31Decl);
+    defer std.heap.page_allocator.free(copyCvss31Decl);
+
+    var it = std.mem.tokenizeScalar(u8, cvss, '/');
+    while (it.next()) |pair| {
+        var itMetric = std.mem.tokenizeScalar(u8, pair, ':');
+        const metricTypeRaw = itMetric.next();
+        if (metricTypeRaw == null) {
             return CvssParseError.NotCVSSString;
         }
-        std.debug.print("metricType: {s}\n", .{metricType.?});
-        const metricValue = itMetric.rest();
-        std.debug.print("metricValue: {s}\n", .{metricValue});
-    }
 
-    var i: usize = 0;
-    while (i < cvss.len) {
         var metricType: ?Cvss31MetricType = null;
-        for (Cvss31Decl) |decl| {
-            if (eql(u8, cvss, decl.metricTypeValue, i)) {
+        for (copyCvss31Decl) |*decl| {
+            if (std.mem.eql(u8, metricTypeRaw.?, decl.metricTypeValue)) {
+                if (decl.isRead == true) {
+                    return CvssParseError.DuplicateMetric;
+                }
                 metricType = decl.metricType;
-                i += decl.metricTypeValue.len;
-                // todo read the colon
-                i += 1; // skip the colon
+                decl.*.isRead = true;
 
-                var value: ?[]const u8 = null;
-                for (0..(decl.possibleValues.len - 1)) |j| {
-                    if (eql(u8, cvss, decl.possibleValues[j], i)) {
-                        value = decl.possibleValues[j];
-                        try metrics.append(.{ .metricType = metricType.?, .value = value.? });
-                        i += value.?.len;
+                const metricValueRaw = itMetric.rest();
+
+                var metricValue: ?[]const u8 = null;
+                for (0..(decl.possibleValues.len)) |j| {
+                    if (std.mem.eql(u8, metricValueRaw, decl.possibleValues[j])) {
+                        metricValue = decl.possibleValues[j];
+                        try metrics.append(.{ .metricType = metricType.?, .value = metricValue.? });
                         break;
                     }
                 }
-                if (value == null) {
+                if (metricValue == null) {
+                    std.debug.print("metric raw: {s}\n", .{metricValueRaw});
+                    std.debug.print("metric type: {}\n", .{metricType.?});
+                    std.debug.print("token: {s}\n", .{pair});
                     return CvssParseError.UnknownMetricValue;
                 }
+
                 break;
             }
         }
-
         if (metricType == null) {
-            return CvssParseError.NotCVSSString;
+            return CvssParseError.UnknownMetricName;
         }
+    }
 
-        // todo consume "/"
-        i += 1;
-        // i += value.len;
+    for (copyCvss31Decl) |decl| {
+        if (decl.required and !decl.isRead) {
+            return CvssParseError.MissingRequiredMetrics;
+        }
     }
 
     return metrics.items;
@@ -163,13 +169,32 @@ fn detect_cvss_version(cvss: []const u8) CvssParseError!CVSS_VERSION {
     }
 }
 
-test "parse simple AV metric" {
-    const cvss = "AV:N";
+test "parse duplicate metric CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/AV:N" {
+    const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/AV:N";
+    const err = parse_cvss31_metrics(cvss);
+    try testing.expectError(CvssParseError.DuplicateMetric, err);
+}
+
+test "parse CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
+    const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
     const metrics = try parse_cvss31_metrics(cvss);
-    std.debug.print("size: {}\n", .{metrics.len});
-    try testing.expect(metrics.len == 1);
-    try testing.expect(metrics[0].metricType == Cvss31MetricType.AV);
-    try testing.expect(std.mem.eql(u8, metrics[0].value, "N"));
+    try testing.expectEqual(8, metrics.len);
+    try testing.expectEqual(Cvss31MetricType.AV, metrics[0].metricType);
+    try testing.expectEqual("N", metrics[0].value);
+    try testing.expectEqual(Cvss31MetricType.AC, metrics[1].metricType);
+    try testing.expectEqual("L", metrics[1].value);
+    try testing.expectEqual(Cvss31MetricType.PR, metrics[2].metricType);
+    try testing.expectEqual("L", metrics[2].value);
+    try testing.expectEqual(Cvss31MetricType.UI, metrics[3].metricType);
+    try testing.expectEqual("N", metrics[3].value);
+    try testing.expectEqual(Cvss31MetricType.S, metrics[4].metricType);
+    try testing.expectEqual("U", metrics[4].value);
+    try testing.expectEqual(Cvss31MetricType.C, metrics[5].metricType);
+    try testing.expectEqual("H", metrics[5].value);
+    try testing.expectEqual(Cvss31MetricType.I, metrics[6].metricType);
+    try testing.expectEqual("H", metrics[6].value);
+    try testing.expectEqual(Cvss31MetricType.A, metrics[7].metricType);
+    try testing.expectEqual("H", metrics[7].value);
 }
 
 test "parse simple AV metric unknown value" {
