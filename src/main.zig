@@ -12,8 +12,7 @@ pub fn main() !void {
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    const four = add(2, 2);
-    std.debug.print("Hello, {}!\n", .{four});
+    std.debug.print("Hello, {}!\n", .{"World"});
 
     try stdout.print("Run `zig build test` to run the tests.\n", .{});
 
