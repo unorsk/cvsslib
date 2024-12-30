@@ -67,17 +67,13 @@ pub const Cvss31Decl: []const Cvss31MetricDecl = &.{
 };
 // zig fmt: on
 
-fn eql(comptime T: type, a: []const T, b: []const T, i: usize) bool {
-    return std.mem.eql(T, a[i..(i + b.len)], b);
-}
-
 pub fn score(cvss: []const u8) !types.CVSS {
     const metrics = try parse_cvss31_metrics(cvss);
     return try score_cvss31(metrics);
 }
 
-fn score_cvss31(cvss_metrics: []types.Cvss31Metric) !types.CVSS {
-    std.log.debug("metrics", .{cvss_metrics});
+fn score_cvss31(cvss_metrics: []Cvss31Metric) !types.CVSS {
+    std.log.debug("metrics {any}", .{cvss_metrics});
     return types.CVSS{ .CVSS31 = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } };
 }
 
@@ -144,7 +140,13 @@ test "parse duplicate metric CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/AV:N" 
     try testing.expectError(types.CvssParseError.DuplicateMetric, err);
 }
 
-test "parse CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
+test "parse missing metricCVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H" {
+    const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H";
+    const err = parse_cvss31_metrics(cvss);
+    try testing.expectError(types.CvssParseError.MissingRequiredMetrics, err);
+}
+
+test "parse green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
     const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
     const metrics = try parse_cvss31_metrics(cvss);
     try testing.expectEqual(8, metrics.len);

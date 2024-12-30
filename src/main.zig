@@ -1,23 +1,32 @@
 const std = @import("std");
-const parse_cvss = @import("cvsslib.zig").parse_cvss;
+const cvss_score = @import("cvsslib.zig").cvss_score;
 
+// CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H
 pub fn main() !void {
     // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
     std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const allocator = arena.allocator();
+
+    const args = try std.process.argsAlloc(allocator);
+
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
 
-    _ = try parse_cvss("blabla");
-
     const stdout = bw.writer();
 
-    std.debug.print("Hello, {s}!\n", .{"World"});
-
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    if (args.len == 2) {
+        std.debug.print("arg: {s}", .{args[1]});
+        _ = try cvss_score(args[1]);
+        try stdout.print("cvss: {s}", .{"cvss.CVSS31"});
+    } else {
+        try stdout.print("Too many or to few arguments!\n", .{});
+    }
 
     try bw.flush(); // don't forget to flush!
+    // stdout is for the actual output of your application, for example if you
+    // are implementing gzip, then only the compressed bytes should be sent to
+    // stdout, not any debugging messages.
+
 }
