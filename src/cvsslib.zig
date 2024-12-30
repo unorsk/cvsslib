@@ -1,5 +1,6 @@
 const types = @import("types.zig");
 const std = @import("std");
+const cvss31 = @import("./cvss31.zig");
 const testing = std.testing;
 
 const CVSS20_HEADER = "CVSS:2.0";
@@ -17,7 +18,7 @@ pub fn parse_cvss(cvss: []const u8) types.CvssParseError!types.CVSS {
             return types.CVSS{ .CVSS30 = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } };
         },
         types.CVSS_VERSION.CVSS31 => {
-            return types.CVSS{ .CVSS31 = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } };
+            cvss31.score(cvss);
         },
         types.CVSS_VERSION.CVSS40 => {
             return types.CVSS{ .CVSS40 = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } };
