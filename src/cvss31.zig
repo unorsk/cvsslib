@@ -83,7 +83,7 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
     std.log.debug("{any}", .{cvss_metrics});
     const metric_value = getMetric(metric, cvss_metrics);
     return switch (metric) {
-        Cvss31MetricType.AV => metric_value.?.weight,
+        Cvss31MetricType.AV => metric_value.?.value,
         Cvss31MetricType.AC => metric_value.?.weight,
         Cvss31MetricType.PR => {
             // if (getMetric(Cvss31MetricType.S, cvss_metrics)) |s| {
@@ -227,14 +227,6 @@ fn parseCvss31Metrics(cvss: []const u8) ![]Cvss31Metric {
     }
 
     return metrics.items; // TODO what happens to the slice when the allocator frees the memory?
-}
-
-fn getEnumValueString(metric_value: Cvss31MetricTypeValue) []const u8 {
-    const TagType = @TypeOf(metric_value);
-    const active_tag = @as(TagType, metric_value);
-    const field_name = @tagName(active_tag);
-    // const FieldType = @TypeOf(@field(metric_value, field_name));
-    return @tagName(@field(metric_value, field_name));
 }
 
 test "parse duplicate metric CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H/AV:N" {
