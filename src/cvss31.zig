@@ -167,14 +167,14 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
             .H => 1.5,
         }, //1, 0.5, 1, 1.5
         Cvss31MetricType.MAV => |mav| switch (mav) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.AV, cvss_metrics),
             .N => 0.85,
             .A => 0.62,
             .L => 0.55,
             .P => 0.2,
         }, //0, 0.85, 0.62, 0.55, 0.2
         Cvss31MetricType.MAC => |mac| switch (mac) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.AC, cvss_metrics),
             .H => 0.44,
             .L => 0.77,
         }, //0, 0.44, 0.77
@@ -185,29 +185,29 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
             .H => 0.85,
         }, //0.85, 0.62, 0.27, 0.85, 0.68, 0.5
         Cvss31MetricType.MUI => |mui| switch (mui) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.UI, cvss_metrics),
             .N => 0.85,
             .R => 0.62,
         }, //0, 0.85, 0.62
         Cvss31MetricType.MS => |ms| switch (ms) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.S, cvss_metrics),
             .U => 6.42,
             .C => 7.52,
         }, //0, 6.42, 7.52
         Cvss31MetricType.MC => |mc| switch (mc) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.C, cvss_metrics),
             .N => 0,
             .L => 0.22,
             .H => 0.56,
         }, //0, 0, 0.22, 0.56
         Cvss31MetricType.MI => |mi| switch (mi) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.I, cvss_metrics),
             .N => 0,
             .L => 0.22,
             .H => 0.56,
         }, //0, 0, 0.22, 0.56
         Cvss31MetricType.MA => |ma| switch (ma) {
-            .X => 0,
+            .X => getMetricWeight(Cvss31MetricType.A, cvss_metrics),
             .N => 0,
             .L => 0.22,
             .H => 0.56,
