@@ -41,6 +41,40 @@ pub fn build(b: *std.Build) void {
     // step when running `zig build`).
     b.installArtifact(exe);
 
+    const wasm_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+        .cpu_features_add = std.Target.wasm.featureSet(&.{
+            .atomics,
+            .bulk_memory,
+            // .extended_const, not supported by Safari
+            .multivalue,
+            .mutable_globals,
+            .nontrapping_fptoint,
+            .reference_types,
+            //.relaxed_simd, not supported by Firefox or Safari
+            .sign_ext,
+            // observed to cause Error occured during wast conversion :
+            // Unknown operator: 0xfd058 in Firefox 117
+            .simd128,
+            // .tail_call, not supported by Safari
+        }),
+    });
+
+    const wasm = b.addExecutable(.{
+        .name = "main",
+        // In this case the main source file is merely a path, however, in more
+        // complicated build scripts, this could be a generated file.
+        .root_source_file = b.path("src/cvsslib.zig"),
+        .target = wasm_target,
+        .optimize = .ReleaseSmall,
+    });
+
+    wasm.entry = .disabled; // disables entry point
+    wasm.rdynamic = true; // expose exported functions to wasm
+
+    b.getInstallStep().dependOn(&b.addInstallFile(wasm.getEmittedBin(), "../www/cvsslib.wasm").step);
+
     // This *creates* a Run step in the build graph, to be executed when another
     // step is evaluated that depends on it. The next line below will establish
     // such a dependency.

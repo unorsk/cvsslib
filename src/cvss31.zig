@@ -70,7 +70,7 @@ pub const Cvss31Metric = struct {
 // TODO pass by reference
 fn getMetric(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) ?Cvss31Metric {
     for (cvss_metrics) |cvss_metric| {
-        if (metric == cvss_metric.test_metric_type) {
+        if (metric == cvss_metric.value) {
             return cvss_metric;
         }
     }
@@ -261,20 +261,20 @@ fn createMetricValue(metric_type_str: []const u8, value_str: []const u8) ?Cvss31
     return null;
 }
 
-pub fn score(cvss: []const u8) !types.CVSS {
+pub fn score(cvss: []const u8) !types.CvssScore {
     const metrics = try parseCvss31Metrics(cvss);
-    return try scoreCvss31(metrics);
+    return scoreCvss31(metrics);
 }
 
 // TODO pass by reference
-fn scoreCvss31(cvss_metrics: []Cvss31Metric) !types.CVSS {
+fn scoreCvss31(cvss_metrics: []Cvss31Metric) !types.CvssScore {
     std.log.debug("metrics {any}", .{cvss_metrics});
 
     // TODO scoring
 
     const av = getMetricWeight(Cvss31MetricType.AV, cvss_metrics);
     std.log.debug("{any}", .{av});
-    return types.CVSS{ .CVSS31 = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } };
+    return types.CvssScore{ .score = 0, .level = types.CVSS_LEVEL.NONE };
 }
 
 fn parseCvss31Metrics(cvss: []const u8) ![]Cvss31Metric {
