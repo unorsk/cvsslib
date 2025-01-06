@@ -38,8 +38,8 @@ const Cvss31MetricTypeValue = union(Cvss31MetricType) {
     I:   enum { N, L, H },
     A:   enum { N, L, H },
     E:   enum { X, U, P, F, H },
-    RL:  enum { X, O, T, W, U, P, C, H },
-    RC:  enum { X, U, R, C, H },
+    RL:  enum { X, O, T, W, U },
+    RC:  enum { X, U, R, C},
     CR:  enum { X, L, M, H },
     IR:  enum { X, L, M, H },
     AR:  enum { X, L, M, H },
@@ -58,7 +58,6 @@ pub const Cvss31MetricDef = struct {
     is_read: bool = false,
     metric_type: Cvss31MetricType,
     required: bool,
-    weights: []const f16,
 };
 
 pub const Cvss31Metric = struct {
@@ -81,67 +80,166 @@ fn getMetric(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) ?Cvss31Metr
 // TODO pass by reference
 fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
     std.log.debug("{any}", .{cvss_metrics});
-    const metric_value = getMetric(metric, cvss_metrics);
-    return switch (metric) {
-        Cvss31MetricType.AV => metric_value.?.value,
-        Cvss31MetricType.AC => metric_value.?.weight,
-        Cvss31MetricType.PR => {
-            // if (getMetric(Cvss31MetricType.S, cvss_metrics)) |s| {
-            //     if (s.value == 'S') {}
-            // } else {}
-            return 0;
+    // const metric_value =
+    return if (getMetric(metric, cvss_metrics)) |v| switch (v.value) {
+        Cvss31MetricType.AV => |av| switch (av) {
+            .N => 0.85,
+            .A => 0.62,
+            .L => 0.55,
+            .P => 0.2,
         },
-        Cvss31MetricType.UI => 0,
-        Cvss31MetricType.S => 0,
-        Cvss31MetricType.C => 0,
-        Cvss31MetricType.I => 0,
-        Cvss31MetricType.A => 0,
-        Cvss31MetricType.E => 0,
-        Cvss31MetricType.RL => 0,
-        Cvss31MetricType.RC => 0,
-        Cvss31MetricType.CR => 0,
-        Cvss31MetricType.IR => 0,
-        Cvss31MetricType.AR => 0,
-        Cvss31MetricType.MAV => 0,
-        Cvss31MetricType.MAC => 0,
-        Cvss31MetricType.MPR => 0,
-        Cvss31MetricType.MUI => 0,
-        Cvss31MetricType.MS => 0,
-        Cvss31MetricType.MC => 0,
-        Cvss31MetricType.MI => 0,
-        Cvss31MetricType.MA => 0,
-    };
+        Cvss31MetricType.AC => |ac| switch (ac) {
+            .L => 0.44,
+            .H => 0.77,
+        },
+        Cvss31MetricType.PR => {
+            const s = if (getMetric(Cvss31MetricType.S, cvss_metrics)) |s|
+                switch (s.value) {
+                    .S => |tmp_s| tmp_s,
+                    else => .U, // TODO
+                }
+            else
+                .U; // TODO
+            return switch (s) {
+                .C => 1,
+                .U => 0,
+            };
+        },
+        Cvss31MetricType.UI => |ui| switch (ui) {
+            .N => 0.85,
+            .R => 0.62,
+        },
+        Cvss31MetricType.S => |s| switch (s) {
+            .U => 6.42,
+            .C => 7.52,
+        }, //6.42, 7.52
+        Cvss31MetricType.C => |c| switch (c) {
+            .N => 0,
+            .L => 0.22,
+            .H => 0.56,
+        }, //0, 0.22, 0.56
+        Cvss31MetricType.I => |i| switch (i) {
+            .N => 0,
+            .L => 0.22,
+            .H => 0.56,
+        }, //0, 0.22, 0.56
+        Cvss31MetricType.A => |a| switch (a) {
+            .N => 0,
+            .L => 0.22,
+            .H => 0.56,
+        }, //0, 0.22, 0.56
+        Cvss31MetricType.E => |e| switch (e) {
+            .X => 1,
+            .U => 0.91,
+            .P => 0.94,
+            .F => 0.97,
+            .H => 1,
+        }, //1, 0.91, 0.94, 0.97, 1
+        Cvss31MetricType.RL => |rl| switch (rl) {
+            .X => 1,
+            .O => 0.95,
+            .T => 0.96,
+            .W => 0.97,
+            .U => 1,
+        }, //1, 0.95, 0.96, 0.97, 1
+        Cvss31MetricType.RC => |rc| switch (rc) {
+            .X => 1,
+            .U => 0.92,
+            .R => 0.96,
+            .C => 1,
+        }, //1, 0.92, 0.96, 1
+        Cvss31MetricType.CR => |cr| switch (cr) {
+            .X => 1,
+            .L => 0.5,
+            .M => 1,
+            .H => 1.5,
+        }, //1, 0.5, 1, 1.5
+        Cvss31MetricType.IR => |ir| switch (ir) {
+            .X => 1,
+            .L => 0.5,
+            .M => 1,
+            .H => 1.5,
+        }, //1, 0.5, 1, 1.5
+        Cvss31MetricType.AR => |ar| switch (ar) {
+            .X => 1,
+            .L => 0.5,
+            .M => 1,
+            .H => 1.5,
+        }, //1, 0.5, 1, 1.5
+        Cvss31MetricType.MAV => |mav| switch (mav) {
+            .X => 0,
+            .N => 0.85,
+            .A => 0.62,
+            .L => 0.55,
+            .P => 0.2,
+        }, //0, 0.85, 0.62, 0.55, 0.2
+        Cvss31MetricType.MAC => |mac| switch (mac) {
+            .X => 0,
+            .H => 0.44,
+            .L => 0.77,
+        }, //0, 0.44, 0.77
+        Cvss31MetricType.MPR => |mpr| switch (mpr) { // TODO!!!
+            .X => 0.85,
+            .N => 0.85,
+            .L => 0.85,
+            .H => 0.85,
+        }, //0.85, 0.62, 0.27, 0.85, 0.68, 0.5
+        Cvss31MetricType.MUI => |mui| switch (mui) {
+            .X => 0,
+            .N => 0.85,
+            .R => 0.62,
+        }, //0, 0.85, 0.62
+        Cvss31MetricType.MS => |ms| switch (ms) {
+            .X => 0,
+            .U => 6.42,
+            .C => 7.52,
+        }, //0, 6.42, 7.52
+        Cvss31MetricType.MC => |mc| switch (mc) {
+            .X => 0,
+            .N => 0,
+            .L => 0.22,
+            .H => 0.56,
+        }, //0, 0, 0.22, 0.56
+        Cvss31MetricType.MI => |mi| switch (mi) {
+            .X => 0,
+            .N => 0,
+            .L => 0.22,
+            .H => 0.56,
+        }, //0, 0, 0.22, 0.56
+        Cvss31MetricType.MA => |ma| switch (ma) {
+            .X => 0,
+            .N => 0,
+            .L => 0.22,
+            .H => 0.56,
+        }, //0, 0, 0.22, 0.56
+    } else 0; // TODO
 }
 
-// zig fmt: off
 pub const cvss31_definitions: []const Cvss31MetricDef = &.{
-    .{ .metric_type = Cvss31MetricType.AV, .required = true,  .weights = &.{0.85, 0.62, 0.55, 0.2}},
-    .{ .metric_type = Cvss31MetricType.AC, .required = true,  .weights = &.{0.44, 0.77}},
-    .{ .metric_type = Cvss31MetricType.PR, .required = true,  .weights = &.{0.85, 0.62, 0.27,
-                                                                            0.85, 0.68, 0.5}},// TODO &.{0, 0, 0}
-    .{ .metric_type = Cvss31MetricType.UI, .required = true,  .weights = &.{0.85, 0.62}},
-    .{ .metric_type = Cvss31MetricType.S,  .required = true,  .weights = &.{6.42, 7.52}},
-    .{ .metric_type = Cvss31MetricType.C,  .required = true,  .weights = &.{0, 0.22, 0.56}},
-    .{ .metric_type = Cvss31MetricType.I,  .required = true,  .weights = &.{0, 0.22, 0.56}},
-    .{ .metric_type = Cvss31MetricType.A,  .required = true,  .weights = &.{0, 0.22, 0.56}},
-    .{ .metric_type = Cvss31MetricType.E,  .required = false, .weights = &.{1, 0.91, 0.94, 0.97, 1}},
-    .{ .metric_type = Cvss31MetricType.RL, .required = false, .weights = &.{1, 0.95, 0.96, 0.97, 1}},
-    .{ .metric_type = Cvss31MetricType.RC, .required = false, .weights = &.{1, 0.92, 0.96, 1}},
-    .{ .metric_type = Cvss31MetricType.CR, .required = false, .weights = &.{1, 0.5, 1, 1.5}},
-    .{ .metric_type = Cvss31MetricType.IR, .required = false, .weights = &.{1, 0.5, 1, 1.5}},
-    .{ .metric_type = Cvss31MetricType.AR, .required = false, .weights = &.{1, 0.5, 1, 1.5}},
+    .{ .metric_type = Cvss31MetricType.AV, .required = true },
+    .{ .metric_type = Cvss31MetricType.AC, .required = true },
+    .{ .metric_type = Cvss31MetricType.PR, .required = true },
+    .{ .metric_type = Cvss31MetricType.UI, .required = true },
+    .{ .metric_type = Cvss31MetricType.S, .required = true },
+    .{ .metric_type = Cvss31MetricType.C, .required = true },
+    .{ .metric_type = Cvss31MetricType.I, .required = true },
+    .{ .metric_type = Cvss31MetricType.A, .required = true },
+    .{ .metric_type = Cvss31MetricType.E, .required = false },
+    .{ .metric_type = Cvss31MetricType.RL, .required = false },
+    .{ .metric_type = Cvss31MetricType.RC, .required = false },
+    .{ .metric_type = Cvss31MetricType.CR, .required = false },
+    .{ .metric_type = Cvss31MetricType.IR, .required = false },
+    .{ .metric_type = Cvss31MetricType.AR, .required = false },
 
-    .{ .metric_type = Cvss31MetricType.MAV, .required = false, .weights = &.{0, 0.85, 0.62, 0.55, 0.2}},
-    .{ .metric_type = Cvss31MetricType.MAC, .required = false, .weights = &.{0, 0.44, 0.77}},
-    .{ .metric_type = Cvss31MetricType.MPR, .required = false, .weights = &.{0.85, 0.62, 0.27,
-                                                                             0.85, 0.68, 0.5}}, // TODO &.{0, 0, 0}
-    .{ .metric_type = Cvss31MetricType.MUI, .required = false, .weights = &.{0, 0.85, 0.62}},
-    .{ .metric_type = Cvss31MetricType.MS,  .required = false, .weights = &.{0, 6.42, 7.52}},
-    .{ .metric_type = Cvss31MetricType.MC,  .required = false, .weights = &.{0, 0, 0.22, 0.56}},
-    .{ .metric_type = Cvss31MetricType.MI,  .required = false, .weights = &.{0, 0, 0.22, 0.56}},
-    .{ .metric_type = Cvss31MetricType.MA,  .required = false, .weights = &.{0, 0, 0.22, 0.56}},
+    .{ .metric_type = Cvss31MetricType.MAV, .required = false },
+    .{ .metric_type = Cvss31MetricType.MAC, .required = false },
+    .{ .metric_type = Cvss31MetricType.MPR, .required = false },
+    .{ .metric_type = Cvss31MetricType.MUI, .required = false },
+    .{ .metric_type = Cvss31MetricType.MS, .required = false },
+    .{ .metric_type = Cvss31MetricType.MC, .required = false },
+    .{ .metric_type = Cvss31MetricType.MI, .required = false },
+    .{ .metric_type = Cvss31MetricType.MA, .required = false },
 };
-// zig fmt: on
 
 fn stringToEnum(enum_type: type, str: []const u8) ?enum_type {
     inline for (@typeInfo(enum_type).Enum.fields) |field| {
@@ -239,6 +337,12 @@ test "parse missing metricCVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H" {
     const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H";
     const err = parseCvss31Metrics(cvss);
     try testing.expectError(types.CvssParseError.MissingRequiredMetrics, err);
+}
+
+test "score green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
+    const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
+    const r = try score(cvss);
+    try testing.expectEqual(1, r.CVSS31.score);
 }
 
 test "parse green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
