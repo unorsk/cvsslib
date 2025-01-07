@@ -1,7 +1,7 @@
 // const CVSS4_HEADER = "CVSS:4.0";
 
 pub const CvssScore = extern struct {
-    score: u8,
+    score: f16,
     level: CVSS_LEVEL,
 };
 

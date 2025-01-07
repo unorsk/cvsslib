@@ -29,30 +29,86 @@ const Cvss31MetricType = enum {
     MA,
 };
 
-// zig fmt: off
+pub const CVSS31 = struct {
+    // Base Metric Group
+    attack_vector: AttackVector,
+    attack_complexity: AttackComplexity,
+    privileges_required: PrivilegesRequired,
+    user_interaction: UserInteraction,
+    scope: Scope,
+    confidentiality: Impact,
+    integrity: Impact,
+    availability: Impact,
+
+    // Temporal Metric Group (optional)
+    exploit_code_maturity: ?ExploitCodeMaturity = null,
+    remediation_level: ?RemediationLevel = null,
+    report_confidence: ?ReportConfidence = null,
+
+    // Environmental Metric Group (optional)
+    confidentiality_requirement: ?SecurityRequirement = null,
+    integrity_requirement: ?SecurityRequirement = null,
+    availability_requirement: ?SecurityRequirement = null,
+
+    modified_attack_vector: ?AttackVector = null,
+    modified_attack_complexity: ?AttackComplexity = null,
+    modified_privileges_required: ?PrivilegesRequired = null,
+    modified_user_interaction: ?UserInteraction = null,
+    modified_scope: ?Scope = null,
+    modified_confidentiality: ?Impact = null,
+    modified_integrity: ?Impact = null,
+    modified_availability: ?Impact = null,
+
+    // pub fn calculateScore(self: CVSS31) f32 {
+    //     // Implement CVSS 3.1 scoring algorithm here
+    //     @compileError("Not implemented");
+    // }
+
+    // pub fn toVectorString(self: CVSS31, allocator: std.mem.Allocator) ![]const u8 {
+    //     // Implement vector string generation here
+    //     @compileError("Not implemented");
+    // }
+
+    // pub fn fromVectorString(allocator: std.mem.Allocator, vector: []const u8) !CVSS31 {
+    //     // Implement parsing from vector string here
+    //     @compileError("Not implemented");
+    // }
+};
+
+pub const AttackVector = enum { Network, Adjacent, Local, Physical };
+pub const AttackComplexity = enum { Low, High };
+pub const PrivilegesRequired = enum { None, Low, High };
+pub const UserInteraction = enum { None, Required };
+pub const Scope = enum { Unchanged, Changed };
+pub const Impact = enum { None, Low, High };
+pub const ExploitCodeMaturity = enum { Unproven, ProofOfConcept, Functional, High };
+pub const RemediationLevel = enum { OfficialFix, TemporaryFix, Workaround, Unavailable };
+pub const ReportConfidence = enum { Unknown, Reasonable, Confirmed };
+pub const SecurityRequirement = enum { Low, Medium, High };
+
 const Cvss31MetricTypeValue = union(Cvss31MetricType) {
-    AV:  enum { N, A, L, P },
-    AC:  enum { L, H },
-    PR:  enum { N, L, H },
-    UI:  enum { N, R },
-    S:   enum { U, C },
-    C:   enum { N, L, H },
-    I:   enum { N, L, H },
-    A:   enum { N, L, H },
-    E:   enum { X, U, P, F, H },
-    RL:  enum { X, O, T, W, U },
-    RC:  enum { X, U, R, C},
-    CR:  enum { X, L, M, H },
-    IR:  enum { X, L, M, H },
-    AR:  enum { X, L, M, H },
+    AV: enum { N, A, L, P },
+    AC: enum { L, H },
+    PR: enum { N, L, H },
+    UI: enum { N, R },
+    S: enum { U, C },
+    C: enum { N, L, H },
+    I: enum { N, L, H },
+    A: enum { N, L, H },
+    E: enum { X, U, P, F, H },
+    RL: enum { X, O, T, W, U },
+    RC: enum { X, U, R, C },
+    CR: enum { X, L, M, H },
+    IR: enum { X, L, M, H },
+    AR: enum { X, L, M, H },
     MAV: enum { X, N, A, L, P },
     MAC: enum { X, H, L },
     MPR: enum { X, N, L, H },
     MUI: enum { X, N, R },
-    MS:  enum { X, U, C },
-    MC:  enum { X, N, L, H },
-    MI:  enum { X, N, L, H },
-    MA:  enum { X, N, L, H },
+    MS: enum { X, U, C },
+    MC: enum { X, N, L, H },
+    MI: enum { X, N, L, H },
+    MA: enum { X, N, L, H },
 };
 // zig fmt: on
 
@@ -74,7 +130,9 @@ fn getMetric(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) ?Cvss31Metr
     for (cvss_metrics) |cvss_metric| {
         // TODO this one is not working
         // if (@as(@TypeOf(metric), metric) == @as(@TypeOf(cvss_metric.value), cvss_metric.value)) {
-        if (metric == cvss_metric.value) {
+        // if (metric == cvss_metric.value) {
+        if (metric == @as(Cvss31MetricType, cvss_metric.value)) {
+            util.debug("metric {any}", .{metric});
             return cvss_metric;
         }
     }
@@ -284,6 +342,15 @@ pub const cvss31_definitions: []const Cvss31MetricDef = &.{
     .{ .metric_type = Cvss31MetricType.MA, .required = false },
 };
 
+fn stringToEnumFirstChar(enum_type: type, str: []const u8) !enum_type {
+    inline for (@typeInfo(enum_type).Enum.fields) |field| {
+        if (std.mem.eql(u8, field.name[0..1], str)) {
+            return @field(enum_type, field.name);
+        }
+    }
+    return types.CvssParseError.UnknownMetricValue;
+}
+
 fn stringToEnum(enum_type: type, str: []const u8) ?enum_type {
     inline for (@typeInfo(enum_type).Enum.fields) |field| {
         if (std.mem.eql(u8, field.name, str)) {
@@ -305,22 +372,121 @@ fn createMetricValue(metric_type_str: []const u8, value_str: []const u8) ?Cvss31
 }
 
 pub fn score(cvss: []const u8) !types.CvssScore {
-    const metrics = try parseCvss31Metrics(cvss);
+    const metrics = try parseCvss31Metrics1(cvss);
     return scoreCvss31(metrics);
 }
 
 // TODO pass by reference
-fn scoreCvss31(cvss_metrics: []Cvss31Metric) !types.CvssScore {
-    std.log.debug("metrics {any}", .{cvss_metrics});
+fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
+    // const exploitability_coefficient = 8.22;
+    // const scope_coefficient = 1.08;
 
-    // TODO scoring
+    // TODO continue here :)
+    const av = switch (cvss.attack_vector) {
+        .Network => 0.85,
+        .Adjacent => 0.62,
+        .Local => 0.55,
+        .Physical => 0.2,
+    };
 
-    const av = getMetricWeight(Cvss31MetricType.AV, cvss_metrics);
     const c = getMetricWeight(Cvss31MetricType.C, cvss_metrics);
-    util.debug("av: {any}", .{av});
-    util.debug("av: {any}", .{@as(u8, @intFromFloat(av))});
-    util.debug("c: {any}", .{@as(u8, @intFromFloat(c))});
-    return types.CvssScore{ .score = @intFromFloat(av), .level = types.CVSS_LEVEL.NONE };
+    const i = getMetricWeight(Cvss31MetricType.I, cvss_metrics);
+    const a = getMetricWeight(Cvss31MetricType.A, cvss_metrics);
+
+    const iss = (1 - ((1 - c) * (1 - i) * (1 - a)));
+
+    util.debug("av: {d:.2}", .{av});
+    util.debug("iss: {d:.2}", .{iss});
+    return types.CvssScore{ .score = av, .level = types.CVSS_LEVEL.NONE };
+}
+
+fn parseCvss31Metrics1(cvss_string: []const u8) !CVSS31 {
+    var metrics = std.ArrayList(Cvss31Metric).init(std.heap.page_allocator);
+
+    var cvss = CVSS31{
+        .attack_vector = .Network,
+        .attack_complexity = .Low,
+        .privileges_required = .None,
+        .user_interaction = .None,
+        .scope = .Unchanged,
+        .confidentiality = .None,
+        .integrity = .None,
+        .availability = .None,
+    };
+
+    const copy_cvss31_def = try std.heap.page_allocator.dupe(Cvss31MetricDef, cvss31_definitions);
+    defer std.heap.page_allocator.free(copy_cvss31_def);
+
+    var it = std.mem.tokenizeScalar(u8, cvss_string, '/');
+    while (it.next()) |pair| {
+        var it_metric = std.mem.tokenizeScalar(u8, pair, ':');
+        const metric_type_raw = it_metric.next();
+        if (metric_type_raw == null) {
+            return types.CvssParseError.NotCVSSString;
+        }
+
+        var metric_type: ?Cvss31MetricType = null;
+        for (copy_cvss31_def) |*decl| {
+            const metric_name = @tagName(decl.metric_type);
+            if (std.mem.eql(u8, metric_type_raw.?, metric_name)) {
+                if (decl.is_read == true) {
+                    return types.CvssParseError.DuplicateMetric;
+                }
+
+                metric_type = decl.metric_type;
+                decl.*.is_read = true;
+
+                const metric_value_raw = it_metric.rest();
+                // zig fmt: off
+                switch (decl.metric_type) {
+                    .AV => cvss.attack_vector                = try stringToEnumFirstChar(AttackVector, metric_value_raw),
+                    .AC => cvss.attack_complexity            = try stringToEnumFirstChar(AttackComplexity, metric_value_raw),
+                    .PR => cvss.privileges_required          = try stringToEnumFirstChar(PrivilegesRequired, metric_value_raw),
+                    .UI => cvss.user_interaction             = try stringToEnumFirstChar(UserInteraction, metric_value_raw),
+                    .S  => cvss.scope                        = try stringToEnumFirstChar(Scope, metric_value_raw),
+                    .C  => cvss.confidentiality              = try stringToEnumFirstChar(Impact, metric_value_raw),
+                    .I  => cvss.integrity                    = try stringToEnumFirstChar(Impact, metric_value_raw),
+                    .A  => cvss.availability                 = try stringToEnumFirstChar(Impact, metric_value_raw),
+
+                    .E  => cvss.exploit_code_maturity        = try stringToEnumFirstChar(ExploitCodeMaturity, metric_value_raw),
+                    .RL => cvss.remediation_level            = try stringToEnumFirstChar(RemediationLevel, metric_value_raw),
+                    .RC => cvss.report_confidence            = try stringToEnumFirstChar(ReportConfidence, metric_value_raw),
+                    .CR => cvss.confidentiality_requirement  = try stringToEnumFirstChar(SecurityRequirement, metric_value_raw),
+                    .IR => cvss.integrity_requirement        = try stringToEnumFirstChar(SecurityRequirement, metric_value_raw),
+                    .AR => cvss.availability_requirement     = try stringToEnumFirstChar(SecurityRequirement, metric_value_raw),
+                    .MAV=> cvss.modified_attack_vector       = try stringToEnumFirstChar(AttackVector, metric_value_raw),
+                    .MAC=> cvss.modified_attack_complexity   = try stringToEnumFirstChar(AttackComplexity, metric_value_raw),
+                    .MPR=> cvss.modified_privileges_required = try stringToEnumFirstChar(PrivilegesRequired, metric_value_raw),
+                    .MUI=> cvss.modified_user_interaction    = try stringToEnumFirstChar(UserInteraction, metric_value_raw),
+                    .MS => cvss.modified_scope               = try stringToEnumFirstChar(Scope, metric_value_raw),
+                    .MC => cvss.modified_confidentiality     = try stringToEnumFirstChar(Impact, metric_value_raw),
+                    .MI => cvss.modified_integrity           = try stringToEnumFirstChar(Impact, metric_value_raw),
+                    .MA => cvss.modified_availability        = try stringToEnumFirstChar(Impact, metric_value_raw),
+                }
+                // zig fmt: on
+
+                if (createMetricValue(metric_type_raw.?, metric_value_raw)) |metric_value| {
+                    try metrics.append(.{ .test_metric_type = if (@import("builtin").mode == .Debug) metric_type.?, .value = metric_value, .test_value = if (@import("builtin").mode == .Debug) metric_value_raw });
+                } else {
+                    // std.log.debug("Unexpected value {any}", .{metric_value_raw});
+                    return types.CvssParseError.UnknownMetricValue;
+                }
+
+                break;
+            }
+        }
+        if (metric_type == null) {
+            return types.CvssParseError.UnknownMetricName;
+        }
+    }
+
+    for (copy_cvss31_def) |decl| {
+        if (decl.required and !decl.is_read) {
+            return types.CvssParseError.MissingRequiredMetrics;
+        }
+    }
+
+    return cvss;
 }
 
 fn parseCvss31Metrics(cvss: []const u8) ![]Cvss31Metric {
@@ -385,11 +551,17 @@ test "parse missing metricCVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H" {
     try testing.expectError(types.CvssParseError.MissingRequiredMetrics, err);
 }
 
-test "score green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
+test "parse new green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
     const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
-    const r = try score(cvss);
-    try testing.expectEqual(1, r.CVSS31.score);
+    const r = try parseCvss31Metrics1(cvss);
+    try testing.expectEqual(.Network, r.attack_vector);
 }
+
+// test "score green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
+//     const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
+//     const r = try score(cvss);
+//     try testing.expectEqual(1, r.CVSS31.score);
+// }
 
 test "parse green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
     const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";

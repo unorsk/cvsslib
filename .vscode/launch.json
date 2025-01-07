@@ -5,10 +5,11 @@
       "type": "lldb",
       "request": "launch",
       "name": "Debug Zig",
-      "program": "${workspaceFolder}/zig-out/bin/${fileBasenameNoExtension}-test",
-      "args": [],
+      "program": "${workspaceFolder}/zig-out/bin/cvsslib",
+      "args": [
+        "CVSS:3.1/AV:A/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+      ],
       "cwd": "${workspaceFolder}",
-      "preLaunchTask": "test"
     }
   ]
 }
