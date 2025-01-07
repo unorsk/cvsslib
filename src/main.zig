@@ -18,8 +18,9 @@ pub fn main() !void {
 
     if (args.len == 2) {
         std.debug.print("arg: {s}", .{args[1]});
-        _ = try cvss_score(args[1]);
-        try stdout.print("cvss: {s}", .{"cvss.CVSS31"});
+        const cvss = try cvss_score(args[1]);
+        try stdout.print("cvss version: {any}\n", .{cvss.version});
+        try stdout.print("cvss score: {any}\n", .{cvss.score});
     } else {
         try stdout.print("Too many or to few arguments!\n", .{});
     }

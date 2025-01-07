@@ -1,5 +1,7 @@
 const std = @import("std");
 const types = @import("./types.zig");
+const util = @import("./util.zig");
+
 const testing = std.testing;
 
 const Cvss31MetricType = enum {
@@ -70,6 +72,8 @@ pub const Cvss31Metric = struct {
 // TODO pass by reference
 fn getMetric(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) ?Cvss31Metric {
     for (cvss_metrics) |cvss_metric| {
+        // TODO this one is not working
+        // if (@as(@TypeOf(metric), metric) == @as(@TypeOf(cvss_metric.value), cvss_metric.value)) {
         if (metric == cvss_metric.value) {
             return cvss_metric;
         }
@@ -79,8 +83,14 @@ fn getMetric(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) ?Cvss31Metr
 
 // TODO pass by reference
 fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
-    std.log.debug("{any}", .{cvss_metrics});
-    // const metric_value =
+    // std.log.debug("{any}", .{cvss_metrics});
+    const s = if (getMetric(Cvss31MetricType.S, cvss_metrics)) |s|
+        switch (s.value) {
+            .S => |sv| sv,
+            else => |v| util.fatal("S metric is required :) {any}", .{v}),
+        }
+    else
+        util.fatal("S metric is required", .{});
     return if (getMetric(metric, cvss_metrics)) |v| switch (v.value) {
         Cvss31MetricType.AV => |av| switch (av) {
             .N => 0.85,
@@ -92,24 +102,25 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
             .L => 0.44,
             .H => 0.77,
         },
-        Cvss31MetricType.PR => {
-            const s = if (getMetric(Cvss31MetricType.S, cvss_metrics)) |s|
-                switch (s.value) {
-                    .S => |tmp_s| tmp_s,
-                    else => .U, // TODO
-                }
-            else
-                .U; // TODO
+        Cvss31MetricType.PR => |pr| {
             return switch (s) {
-                .C => 1,
-                .U => 0,
+                .U => switch (pr) {
+                    .N => 0.85,
+                    .L => 0.62,
+                    .H => 0.27,
+                },
+                .C => switch (pr) {
+                    .N => 0.85,
+                    .L => 0.68,
+                    .H => 0.5,
+                },
             };
         },
         Cvss31MetricType.UI => |ui| switch (ui) {
             .N => 0.85,
             .R => 0.62,
         },
-        Cvss31MetricType.S => |s| switch (s) {
+        Cvss31MetricType.S => switch (s) {
             .U => 6.42,
             .C => 7.52,
         }, //6.42, 7.52
@@ -178,11 +189,43 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
             .H => 0.44,
             .L => 0.77,
         }, //0, 0.44, 0.77
-        Cvss31MetricType.MPR => |mpr| switch (mpr) { // TODO!!!
-            .X => 0.85,
-            .N => 0.85,
-            .L => 0.85,
-            .H => 0.85,
+        Cvss31MetricType.MPR => |mpr| {
+            const mss = if (getMetric(Cvss31MetricType.MS, cvss_metrics)) |ms| switch (ms.value) {
+                .MS => |ms1| switch (ms1) {
+                    .X => s,
+                    .U => .U,
+                    .C => .C,
+                },
+                else => s,
+            } else s;
+
+            const pr = if (getMetric(Cvss31MetricType.PR, cvss_metrics)) |pr2| switch (pr2.value) {
+                .PR => |pr1| pr1,
+                else => util.fatal("PR is a required metric", .{}),
+            } else util.fatal("PR is a required metric", .{});
+
+            return switch (mss) {
+                .U => switch (mpr) { // TODO!!!
+                    .X => switch (pr) {
+                        .N => 0.85,
+                        .L => 0.62,
+                        .H => 0.27,
+                    }, //PR
+                    .N => 0.85,
+                    .L => 0.62,
+                    .H => 0.27,
+                },
+                .C => switch (mpr) { // TODO!!!
+                    .X => switch (pr) {
+                        .N => 0.85,
+                        .L => 0.68,
+                        .H => 0.5,
+                    }, //PR
+                    .N => 0.85,
+                    .L => 0.68,
+                    .H => 0.5,
+                },
+            };
         }, //0.85, 0.62, 0.27, 0.85, 0.68, 0.5
         Cvss31MetricType.MUI => |mui| switch (mui) {
             .X => getMetricWeight(Cvss31MetricType.UI, cvss_metrics),
@@ -212,7 +255,7 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
             .L => 0.22,
             .H => 0.56,
         }, //0, 0, 0.22, 0.56
-    } else 0; // TODO
+    } else 123; // TODO
 }
 
 pub const cvss31_definitions: []const Cvss31MetricDef = &.{
@@ -273,8 +316,11 @@ fn scoreCvss31(cvss_metrics: []Cvss31Metric) !types.CvssScore {
     // TODO scoring
 
     const av = getMetricWeight(Cvss31MetricType.AV, cvss_metrics);
-    std.log.debug("{any}", .{av});
-    return types.CvssScore{ .score = 0, .level = types.CVSS_LEVEL.NONE };
+    const c = getMetricWeight(Cvss31MetricType.C, cvss_metrics);
+    util.debug("av: {any}", .{av});
+    util.debug("av: {any}", .{@as(u8, @intFromFloat(av))});
+    util.debug("c: {any}", .{@as(u8, @intFromFloat(c))});
+    return types.CvssScore{ .score = @intFromFloat(av), .level = types.CVSS_LEVEL.NONE };
 }
 
 fn parseCvss31Metrics(cvss: []const u8) ![]Cvss31Metric {
@@ -306,7 +352,7 @@ fn parseCvss31Metrics(cvss: []const u8) ![]Cvss31Metric {
                 if (createMetricValue(metric_type_raw.?, metric_value_raw)) |metric_value| {
                     try metrics.append(.{ .test_metric_type = if (@import("builtin").mode == .Debug) metric_type.?, .value = metric_value, .test_value = if (@import("builtin").mode == .Debug) metric_value_raw });
                 } else {
-                    std.log.debug("Unexpected value {any}", .{metric_value_raw});
+                    // std.log.debug("Unexpected value {any}", .{metric_value_raw});
                     return types.CvssParseError.UnknownMetricValue;
                 }
 
