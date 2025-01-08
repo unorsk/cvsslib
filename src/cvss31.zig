@@ -316,6 +316,28 @@ fn getMetricWeight(metric: Cvss31MetricType, cvss_metrics: []Cvss31Metric) f16 {
     } else 123; // TODO
 }
 
+const Cvss31_def = struct {
+    name: []const u8,
+    is_required: bool = false,
+    is_read: bool = false,
+};
+
+fn gen_cvss31_definitions() []Cvss31_def {
+    var defs: [std.meta.fieldNames(CVSS31).len]Cvss31_def = undefined;
+
+    inline for (comptime std.meta.fields(CVSS31), 0..) |field, i| {
+        // std.meta.fields(comptime T: type)
+        // std.meta.fieldInfo(CVSS31, )
+        defs[i] = .{
+            .name = field.name,
+            .is_required = field.default_value != null,
+        };
+
+        // sum += @field(my_struct, field_name);
+    }
+    return &defs;
+}
+
 pub const cvss31_definitions: []const Cvss31MetricDef = &.{
     .{ .metric_type = Cvss31MetricType.AV, .required = true },
     .{ .metric_type = Cvss31MetricType.AC, .required = true },
@@ -382,16 +404,17 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
     // const scope_coefficient = 1.08;
 
     // TODO continue here :)
-    const av = switch (cvss.attack_vector) {
+    // var av: f16 = 0;
+    const av: f16 = switch (cvss.attack_vector) {
         .Network => 0.85,
         .Adjacent => 0.62,
         .Local => 0.55,
         .Physical => 0.2,
     };
 
-    const c = getMetricWeight(Cvss31MetricType.C, cvss_metrics);
-    const i = getMetricWeight(Cvss31MetricType.I, cvss_metrics);
-    const a = getMetricWeight(Cvss31MetricType.A, cvss_metrics);
+    const c = 1.0;
+    const i = 2.0;
+    const a = 3.0;
 
     const iss = (1 - ((1 - c) * (1 - i) * (1 - a)));
 
@@ -413,6 +436,9 @@ fn parseCvss31Metrics1(cvss_string: []const u8) !CVSS31 {
         .integrity = .None,
         .availability = .None,
     };
+
+    const defs = gen_cvss31_definitions();
+    util.debug("{s}\r\n", .{defs[defs.len - 1].name});
 
     const copy_cvss31_def = try std.heap.page_allocator.dupe(Cvss31MetricDef, cvss31_definitions);
     defer std.heap.page_allocator.free(copy_cvss31_def);
