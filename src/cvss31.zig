@@ -400,11 +400,10 @@ pub fn score(cvss: []const u8) !types.CvssScore {
 
 // TODO pass by reference
 fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
-    // const exploitability_coefficient = 8.22;
-    // const scope_coefficient = 1.08;
+    const exploitability_coefficient = 8.22;
+    const scope_coefficient = 1.08;
 
     // TODO continue here :)
-    // var av: f16 = 0;
     const av: f16 = switch (cvss.attack_vector) {
         .Network => 0.85,
         .Adjacent => 0.62,
@@ -412,14 +411,72 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
         .Physical => 0.2,
     };
 
-    const c = 1.0;
-    const i = 2.0;
-    const a = 3.0;
+    const c: f16 = switch (cvss.confidentiality) {
+        .High => 0.56,
+        .Low => 0.22,
+        .None => 0.0,
+    };
+
+    const i: f16 = switch (cvss.integrity) {
+        .High => 0.56,
+        .Low => 0.22,
+        .None => 0.0,
+    };
+
+    const a: f16 = switch (cvss.availability) {
+        .High => 0.56,
+        .Low => 0.22,
+        .None => 0.0,
+    };
+
+    const s: f16 = switch (cvss.scope) {
+        .Changed => 7.52,
+        .Unchanged => 6.42,
+    };
+
+    const ac: f16 = switch (cvss.attack_complexity) {
+        .High => 0.77,
+        .Low => 0.44,
+    };
+
+    const pr: f16 = switch (cvss.scope) {
+        .Unchanged => switch (cvss.privileges_required) {
+            .N => 0.85,
+            .L => 0.62,
+            .H => 0.27,
+        },
+        .Changed => switch (cvss.privileges_required) {
+            .N => 0.85,
+            .L => 0.68,
+            .H => 0.5,
+        },
+    };
+
+    const ui: f16 = switch (cvss.user_interaction) {
+        .None => 0.85,
+        .Required => 0.62,
+    };
 
     const iss = (1 - ((1 - c) * (1 - i) * (1 - a)));
 
+    const impact: f16 = switch (cvss.scope) {
+        .Unchanged => s * iss,
+        .Changed => s * (iss - 0.029) - 3.25 * std.math.pow(f16, iss - 0.02, 15),
+    };
+
+    const exploitability: f16 = exploitability_coefficient * av * ac * pr * ui;
+    const bare_score: f16 = if (impact <= 0) {
+        0.0;
+    } else switch (cvss.scope) {
+        .Unchanged => std.math.min(impact + exploitability, 10.0), // todo rounding
+        .Changed => std.math.min(scope_coefficient * (impact + exploitability), 10.0), // todo rounding
+    };
+
     util.debug("av: {d:.2}", .{av});
     util.debug("iss: {d:.2}", .{iss});
+    util.debug("impact: {d:.2}", .{impact});
+    util.debug("exploitability: {d:.2}", .{exploitability});
+    util.debug("bare_score: {d:.2}", .{bare_score});
     return types.CvssScore{ .score = av, .level = types.CVSS_LEVEL.NONE };
 }
 
