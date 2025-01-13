@@ -122,7 +122,7 @@ pub const Cvss31Metric = struct {
     value: Cvss31MetricTypeValue,
     test_metric_type: if (@import("builtin").mode == .Debug) Cvss31MetricType else void = undefined, // TODO I no longer need this one, but I could use
     test_value: if (@import("builtin").mode == .Debug) []const u8 else void = undefined,
-    // weight: f16,
+    // weight: f32,
 };
 
 // TODO pass by reference
@@ -403,81 +403,155 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
     const exploitability_coefficient = 8.22;
     const scope_coefficient = 1.08;
 
-    // TODO continue here :)
-    const av: f16 = switch (cvss.attack_vector) {
+    const av: f32 = switch (cvss.attack_vector) {
         .Network => 0.85,
         .Adjacent => 0.62,
         .Local => 0.55,
         .Physical => 0.2,
     };
 
-    const c: f16 = switch (cvss.confidentiality) {
+    const c: f32 = switch (cvss.confidentiality) {
         .High => 0.56,
         .Low => 0.22,
         .None => 0.0,
     };
 
-    const i: f16 = switch (cvss.integrity) {
+    const i: f32 = switch (cvss.integrity) {
         .High => 0.56,
         .Low => 0.22,
         .None => 0.0,
     };
 
-    const a: f16 = switch (cvss.availability) {
+    const a: f32 = switch (cvss.availability) {
         .High => 0.56,
         .Low => 0.22,
         .None => 0.0,
     };
 
-    const s: f16 = switch (cvss.scope) {
+    const s: f32 = switch (cvss.scope) {
         .Changed => 7.52,
         .Unchanged => 6.42,
     };
 
-    const ac: f16 = switch (cvss.attack_complexity) {
+    const ac: f32 = switch (cvss.attack_complexity) {
         .High => 0.77,
         .Low => 0.44,
     };
 
-    const pr: f16 = switch (cvss.scope) {
+    const pr: f32 = switch (cvss.scope) {
         .Unchanged => switch (cvss.privileges_required) {
-            .N => 0.85,
-            .L => 0.62,
-            .H => 0.27,
+            .None => 0.85,
+            .Low => 0.62,
+            .High => 0.27,
         },
         .Changed => switch (cvss.privileges_required) {
-            .N => 0.85,
-            .L => 0.68,
-            .H => 0.5,
+            .None => 0.85,
+            .Low => 0.68,
+            .High => 0.5,
         },
     };
 
-    const ui: f16 = switch (cvss.user_interaction) {
+    const ui: f32 = switch (cvss.user_interaction) {
         .None => 0.85,
         .Required => 0.62,
     };
 
     const iss = (1 - ((1 - c) * (1 - i) * (1 - a)));
 
-    const impact: f16 = switch (cvss.scope) {
+    const impact: f32 = switch (cvss.scope) {
         .Unchanged => s * iss,
-        .Changed => s * (iss - 0.029) - 3.25 * std.math.pow(f16, iss - 0.02, 15),
+        .Changed => s * (iss - 0.029) - 3.25 * std.math.pow(f32, iss - 0.02, 15),
     };
 
-    const exploitability: f16 = exploitability_coefficient * av * ac * pr * ui;
-    const bare_score: f16 = if (impact <= 0) {
-        0.0;
-    } else switch (cvss.scope) {
-        .Unchanged => std.math.min(impact + exploitability, 10.0), // todo rounding
-        .Changed => std.math.min(scope_coefficient * (impact + exploitability), 10.0), // todo rounding
+    const exploitability: f32 = exploitability_coefficient * av * ac * pr * ui;
+    const bare_score: f32 = if (impact <= 0)
+        0.0
+    else switch (cvss.scope) {
+        .Unchanged => @min(impact + exploitability, 10.0), // todo rounding
+        .Changed => @min(scope_coefficient * (impact + exploitability), 10.0), // todo rounding
     };
+
+    const e: f32 = if (cvss.exploit_code_maturity) |ecm| switch (ecm) {
+        .Unproven => 0.91,
+        .ProofOfConcept => 0.94,
+        .Functional => 0.97,
+        .High => 1.0,
+    } else 1.0;
+
+    const rl: f32 = if (cvss.remediation_level) |rl| switch (rl) {
+        .OfficialFix => 0.95,
+        .TemporaryFix => 0.96,
+        .Workaround => 0.97,
+        .Unavailable => 1.0,
+    } else 1.0;
+
+    const rc: f32 = if (cvss.report_confidence) |rc| switch (rc) {
+        .Unknown => 0.92,
+        .Reasonable => 0.96,
+        .Confirmed => 1.0,
+    } else 1.0;
+
+    const temporal_score: f32 = bare_score * e * rl * rc;
+
+    const mc: f32 = if (cvss.modified_confidentiality) |mc| switch (mc) {
+        .None => 0.0,
+        .Low => 0.22,
+        .High => 0.56,
+    } else c;
+
+    const cr: f32 = if (cvss.confidentiality_requirement) |cr| switch (cr) {
+        .Low => 0.5,
+        .Medium => 1.0,
+        .High => 1.5,
+    } else 1.0;
+
+    const mi: f32 = if (cvss.modified_integrity) |mi| switch (mi) {
+        .None => 0.0,
+        .Low => 0.22,
+        .High => 0.56,
+    } else i;
+
+    const ir: f32 = if (cvss.integrity_requirement) |ir| switch (ir) {
+        .Low => 0.5,
+        .Medium => 1.0,
+        .High => 1.5,
+    } else 1.0;
+
+    const ma: f32 = if (cvss.modified_availability) |ma| switch (ma) {
+        .None => 0.0,
+        .Low => 0.22,
+        .High => 0.56,
+    } else a;
+
+    const ar: f32 = if (cvss.availability_requirement) |ar| switch (ar) {
+        .Low => 0.5,
+        .Medium => 1.0,
+        .High => 1.5,
+    } else 1.0;
+
+    const miss: f32 = @min(1 - ((1 - mc * cr) * (1 - mi * ir) * (1 - ma * ar)), 0.915);
+
+    const ms: f32 = if (cvss.modified_scope) |ms| switch (ms) {
+        .Unchanged => 6.42,
+        .Changed => 7.52,
+    } else s;
+
+    const modified_impact: f32 = if (cvss.modified_scope == .Unchanged or (cvss.modified_scope == null and cvss.scope == .Unchanged))
+        ms * miss
+    else
+        ms * (miss - 0.029) - 3.25 * std.math.pow(f32, miss * 0.9731 - 0.02, 13);
+
+    // TODO continue here :)
 
     util.debug("av: {d:.2}", .{av});
     util.debug("iss: {d:.2}", .{iss});
     util.debug("impact: {d:.2}", .{impact});
     util.debug("exploitability: {d:.2}", .{exploitability});
     util.debug("bare_score: {d:.2}", .{bare_score});
-    return types.CvssScore{ .score = av, .level = types.CVSS_LEVEL.NONE };
+    util.debug("temporal_score: {d:.2}", .{temporal_score});
+    util.debug("miss: {d:.2}", .{miss});
+    util.debug("modified_impact: {d:.2}", .{modified_impact});
+    return types.CvssScore{ .score = 0.1, .level = types.CVSS_LEVEL.NONE };
 }
 
 fn parseCvss31Metrics1(cvss_string: []const u8) !CVSS31 {
