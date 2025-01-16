@@ -358,7 +358,7 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
     util.debug("modified_impact: {d:.2}", .{modified_impact});
     util.debug("modified_exploitability: {d:.2}", .{modified_exploitability});
     util.debug("env_score: {d:.2}", .{env_score});
-    return types.CvssScore{ .score = base_score, .level = types.CVSS_LEVEL.NONE };
+    return types.CvssScore{ .score = base_score, .level = util.levelFromScore(base_score) };
 }
 
 fn parseCvss31(cvss_string: []const u8) !CVSS31 {
@@ -468,10 +468,21 @@ fn only_score(cvss: []const u8) !f32 {
 }
 
 test "a bunch of scoring tests" {
-    try testing.expectEqual(8.8, only_score("AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"));
-    try testing.expectEqual(5.8, only_score("AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N"));
-    try testing.expectEqual(6.4, only_score("AV:N/AC:L/PR:L/UI:N/S:C/C:L/I:L/A:N"));
-    try testing.expectEqual(3.1, only_score("AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N"));
+    const s1 = try score("AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H");
+    try testing.expectEqual(8.8, s1.score);
+    try testing.expectEqual(types.CVSS_LEVEL.HIGH, s1.level);
+
+    const s2 = try score("AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N");
+    try testing.expectEqual(5.8, s2.score);
+    try testing.expectEqual(types.CVSS_LEVEL.MEDIUM, s2.level);
+
+    const s3 = try score("AV:N/AC:L/PR:L/UI:N/S:C/C:L/I:L/A:N");
+    try testing.expectEqual(6.4, s3.score);
+    try testing.expectEqual(types.CVSS_LEVEL.MEDIUM, s3.level);
+
+    const s4 = try score("AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N");
+    try testing.expectEqual(3.1, s4.score);
+    try testing.expectEqual(types.CVSS_LEVEL.LOW, s4.level);
 }
 
 test "parse green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
