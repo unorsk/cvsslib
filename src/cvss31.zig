@@ -398,6 +398,11 @@ pub fn score(cvss: []const u8) !types.CvssScore {
     return scoreCvss31(metrics);
 }
 
+fn round_up1(x: f32) f32 {
+    const factor = 10.0;
+    return std.math.ceil(x * factor) / factor;
+}
+
 // TODO pass by reference
 fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
     const exploitability_coefficient = 8.22;
@@ -434,8 +439,8 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
     };
 
     const ac: f32 = switch (cvss.attack_complexity) {
-        .High => 0.77,
-        .Low => 0.44,
+        .High => 0.44,
+        .Low => 0.77,
     };
 
     const pr: f32 = switch (cvss.scope) {
@@ -464,11 +469,11 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
     };
 
     const exploitability: f32 = exploitability_coefficient * av * ac * pr * ui;
-    const bare_score: f32 = if (impact <= 0)
+    const base_score: f32 = if (impact <= 0)
         0.0
     else switch (cvss.scope) {
-        .Unchanged => @min(impact + exploitability, 10.0), // todo rounding
-        .Changed => @min(scope_coefficient * (impact + exploitability), 10.0), // todo rounding
+        .Unchanged => round_up1(@min(impact + exploitability, 10.0)), // todo rounding
+        .Changed => round_up1(@min(scope_coefficient * (impact + exploitability), 10.0)), // todo rounding
     };
 
     const e: f32 = if (cvss.exploit_code_maturity) |ecm| switch (ecm) {
@@ -491,7 +496,7 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
         .Confirmed => 1.0,
     } else 1.0;
 
-    const temporal_score: f32 = bare_score * e * rl * rc;
+    const temporal_score: f32 = base_score * e * rl * rc;
 
     const mc: f32 = if (cvss.modified_confidentiality) |mc| switch (mc) {
         .None => 0.0,
@@ -536,22 +541,64 @@ fn scoreCvss31(cvss: CVSS31) !types.CvssScore {
         .Changed => 7.52,
     } else s;
 
+    const mav: f32 = if (cvss.modified_attack_vector) |mav| switch (mav) {
+        .Network => 0.85,
+        .Adjacent => 0.62,
+        .Local => 0.55,
+        .Physical => 0.2,
+    } else av;
+
+    const mac: f32 = if (cvss.modified_attack_complexity) |mac| switch (mac) {
+        .High => 0.44,
+        .Low => 0.77,
+    } else ac;
+
+    const mod_scope = if (cvss.modified_scope) |mod_scope| mod_scope else cvss.scope;
+    const mod_priv = if (cvss.modified_privileges_required) |mod_priv| mod_priv else cvss.privileges_required;
+
+    const mpr: f32 = switch (mod_scope) {
+        .Unchanged => switch (mod_priv) {
+            .None => 0.85,
+            .Low => 0.62,
+            .High => 0.27,
+        },
+        .Changed => switch (mod_priv) {
+            .None => 0.85,
+            .Low => 0.68,
+            .High => 0.5,
+        },
+    };
+
+    const mui: f32 = if (cvss.modified_user_interaction) |mui| switch (mui) {
+        .None => 0.85,
+        .Required => 0.62,
+    } else ui;
+
     const modified_impact: f32 = if (cvss.modified_scope == .Unchanged or (cvss.modified_scope == null and cvss.scope == .Unchanged))
         ms * miss
     else
         ms * (miss - 0.029) - 3.25 * std.math.pow(f32, miss * 0.9731 - 0.02, 13);
 
+    const modified_exploitability: f32 = exploitability_coefficient * mav * mac * mpr * mui;
     // TODO continue here :)
 
-    util.debug("av: {d:.2}", .{av});
+    const env_score: f32 = if (modified_impact <= 0)
+        0.0
+    else if (cvss.modified_scope != null and cvss.modified_scope == .Unchanged or (cvss.modified_scope == null and cvss.scope == .Unchanged))
+        round_up1(round_up1(@min((modified_impact + modified_exploitability), 10)) * e * rl * rc)
+    else
+        round_up1(round_up1(@min(scope_coefficient * (modified_impact + modified_exploitability), 10)) * e * rl * rc);
+
+    util.debug("base_score: {d:.2}", .{base_score});
     util.debug("iss: {d:.2}", .{iss});
     util.debug("impact: {d:.2}", .{impact});
     util.debug("exploitability: {d:.2}", .{exploitability});
-    util.debug("bare_score: {d:.2}", .{bare_score});
     util.debug("temporal_score: {d:.2}", .{temporal_score});
     util.debug("miss: {d:.2}", .{miss});
     util.debug("modified_impact: {d:.2}", .{modified_impact});
-    return types.CvssScore{ .score = 0.1, .level = types.CVSS_LEVEL.NONE };
+    util.debug("modified_exploitability: {d:.2}", .{modified_exploitability});
+    util.debug("env_score: {d:.2}", .{env_score});
+    return types.CvssScore{ .score = base_score, .level = types.CVSS_LEVEL.NONE };
 }
 
 fn parseCvss31Metrics1(cvss_string: []const u8) !CVSS31 {
@@ -712,6 +759,18 @@ test "parse new green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
     const cvss = "AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
     const r = try parseCvss31Metrics1(cvss);
     try testing.expectEqual(.Network, r.attack_vector);
+}
+
+fn only_score(cvss: []const u8) !f32 {
+    const s = try score(cvss);
+    return s.score;
+}
+
+test "a bunch of scoring tests" {
+    try testing.expectEqual(8.8, only_score("AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"));
+    try testing.expectEqual(5.8, only_score("AV:N/AC:L/PR:N/UI:N/S:C/C:N/I:L/A:N"));
+    try testing.expectEqual(6.4, only_score("AV:N/AC:L/PR:L/UI:N/S:C/C:L/I:L/A:N"));
+    try testing.expectEqual(3.1, only_score("AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N"));
 }
 
 // test "score green test CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" {
