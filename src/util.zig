@@ -6,6 +6,8 @@ const cvss = @import("types.zig");
 var allocator = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = allocator.allocator();
 
+pub extern fn consoleLog(msg: [*]const u8, le: usize) void;
+
 pub fn debug(
     comptime format: []const u8,
     args: anytype,
@@ -28,6 +30,7 @@ pub fn levelFromScore(score: f32) cvss.CVSS_LEVEL {
 
 pub fn fatal(comptime format: []const u8, args: anytype) noreturn {
     if (comptime builtin.target.isWasm()) {
+        consoleLog(format.ptr, format.len);
         unreachable;
     } else {
         debug(format, args);

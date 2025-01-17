@@ -9,11 +9,33 @@
 
 <body>
   <script type="module">
-    WebAssembly.instantiateStreaming(fetch("./cvsslib.wasm")).then(mod => {
+    const importObject = {
+      env: {
+        consoleLog: function (ptr, len) {
+          const memory = new Uint8Array(window.wasmInstance.exports.memory.buffer);
+          const message = new TextDecoder().decode(memory.subarray(ptr, ptr + len));
+          console.log("Zig says:", message);
+        }
+      }
+    };
+
+    WebAssembly.instantiateStreaming(fetch("./cvsslib.wasm"), importObject).then(mod => {
       console.log(mod.instance);
-      const { cvss_score_wasm } = mod.instance.exports;
+      const { cvssScoreWasm } = mod.instance.exports;
+      window.wasmInstance = mod.instance;
       const cvss = "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
-      console.log(cvss_score_wasm(cvss, cvss.length));
+
+      const encoder = new TextEncoder();
+      const cvssData = encoder.encode(cvss);
+
+      const ptr = wasmInstance.exports.allocate(cvssData.length);
+      const memory = new Uint8Array(wasmInstance.exports.memory.buffer);
+      memory.set(cvssData, ptr);
+
+      const result = wasmInstance.exports.cvssScoreWasm(ptr, cvssData.length);
+      wasmInstance.exports.deallocate(ptr, cvssData.length);
+
+      console.log(result);
     })
   </script>
 </body>

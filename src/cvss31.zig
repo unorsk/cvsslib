@@ -137,7 +137,7 @@ pub const cvss31_definitions: []const Cvss31MetricDef = &.{
 };
 
 fn stringToEnumFirstChar(enum_type: type, str: []const u8) !enum_type {
-    inline for (@typeInfo(enum_type).Enum.fields) |field| {
+    inline for (@typeInfo(enum_type).@"enum".fields) |field| {
         if (std.mem.eql(u8, field.name[0..1], str)) {
             return @field(enum_type, field.name);
         }
@@ -146,7 +146,7 @@ fn stringToEnumFirstChar(enum_type: type, str: []const u8) !enum_type {
 }
 
 fn stringToEnum(enum_type: type, str: []const u8) ?enum_type {
-    inline for (@typeInfo(enum_type).Enum.fields) |field| {
+    inline for (@typeInfo(enum_type).@"enum".fields) |field| {
         if (std.mem.eql(u8, field.name, str)) {
             return @field(enum_type, field.name);
         }

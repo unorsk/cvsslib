@@ -1,5 +1,5 @@
 const std = @import("std");
-const cvss_score = @import("cvsslib.zig").cvss_score;
+const cvssScore = @import("cvsslib.zig").cvssScore;
 
 // CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H
 pub fn main() !void {
@@ -18,7 +18,7 @@ pub fn main() !void {
 
     if (args.len == 2) {
         std.debug.print("arg: {s}", .{args[1]});
-        const cvss = try cvss_score(args[1]);
+        const cvss = try cvssScore(args[1]);
         try stdout.print("cvss version: {any}\n", .{cvss.version});
         try stdout.print("cvss score: {any}\n", .{cvss.score});
     } else {
