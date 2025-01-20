@@ -58,21 +58,6 @@ pub const CVSS31 = struct {
     modified_confidentiality: ?Impact = null,
     modified_integrity: ?Impact = null,
     modified_availability: ?Impact = null,
-
-    // pub fn calculateScore(self: CVSS31) f32 {
-    //     // Implement CVSS 3.1 scoring algorithm here
-    //     @compileError("Not implemented");
-    // }
-
-    // pub fn toVectorString(self: CVSS31, allocator: std.mem.Allocator) ![]const u8 {
-    //     // Implement vector string generation here
-    //     @compileError("Not implemented");
-    // }
-
-    // pub fn fromVectorString(allocator: std.mem.Allocator, vector: []const u8) !CVSS31 {
-    //     // Implement parsing from vector string here
-    //     @compileError("Not implemented");
-    // }
 };
 
 pub const AttackVector = enum { Network, Adjacent, Local, Physical };

@@ -6,7 +6,7 @@ Nothing is ready yet! 😅
 - [ ] Support for CVSS4.0
 - [ ] Support for CVSS3.1
 - [ ] Support for CVSS3.0
-- [ ] Support for CVSS2
+- [ ] Support for CVSS2.0
 - [ ] Command line interface
 - [ ] CVSS explainer
 - [ ] Web interface
