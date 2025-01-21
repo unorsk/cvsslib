@@ -2,6 +2,7 @@ const builtin = @import("builtin");
 const types = @import("types.zig");
 const std = @import("std");
 const cvss31 = @import("./cvss31.zig");
+const cvss40 = @import("./cvss40.zig");
 const consoleLog = @import("./util.zig").consoleLog;
 const fatal = @import("./util.zig").fatal;
 const testing = std.testing;
@@ -48,7 +49,7 @@ pub fn cvssScore(cvss: []const u8) !types.CVSS {
             return types.CVSS{ .version = .CVSS31, .score = try cvss31.score(cvss[CVSS31_HEADER.len..]) };
         },
         types.CVSS_VERSION.CVSS40 => {
-            return types.CVSS{ .version = .CVSS40, .score = try cvss31.score(cvss[CVSS31_HEADER.len..]) };
+            return types.CVSS{ .version = .CVSS40, .score = try cvss40.score(cvss[CVSS31_HEADER.len..]) };
         },
     }
 }
