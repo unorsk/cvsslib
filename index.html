@@ -13,7 +13,7 @@
 </head>
 
 <body>
-  <script type="module">
+  <script>
     const importObject = {
       env: {
         consoleLog: function (ptr, len) {
@@ -24,11 +24,8 @@
       }
     };
 
-    WebAssembly.instantiateStreaming(fetch("./www/cvsslib.wasm"), importObject).then(mod => {
-      console.log(mod.instance);
-      const { cvssScoreWasm } = mod.instance.exports;
-      window.wasmInstance = mod.instance;
-      const cvss = "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
+    function score(cvss) {
+      // const cvss = "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H";
 
       const encoder = new TextEncoder();
       const cvssData = encoder.encode(cvss);
@@ -46,14 +43,16 @@
         const score = resultView.getFloat32(4, true);
         const level = resultView.getUint32(8, true);
 
-        console.log("CVSS Result:", {
+        const r = {
           version: version,
           score: {
             score: score,
             level: level
           }
-        });
+        };
+        console.log("CVSS Result:", r);
 
+        document.getElementById("result").innerHTML = JSON.stringify(r);
         // Don't forget to free the allocated memory
         wasmInstance.exports.deallocate(resultPtr);
       } else {
@@ -61,9 +60,15 @@
       }
 
       wasmInstance.exports.deallocate(ptr, cvssData.length);
+    }
+
+    WebAssembly.instantiateStreaming(fetch("./www/cvsslib.wasm"), importObject).then(mod => {
+      console.log(mod.instance);
+      const { cvssScoreWasm } = mod.instance.exports;
+      window.wasmInstance = mod.instance;
     }).catch(console.error);
   </script>
-  <input type="text" id="cvss" />
+  <input type="text" id="cvss" value="CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H" />
   <button onclick="score(document.getElementById('cvss').value);">Score</button>
   <div id="result"></div>
 
