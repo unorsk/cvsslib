@@ -27,22 +27,18 @@ export fn deallocate(ptr: [*]u8, size: usize) void {
 }
 
 pub export fn cvssScoreWasm(cvss: [*]const u8, len: usize) ?[*]u8 {
-    const hello = "Hello";
     if (comptime builtin.target.isWasm()) {
-        consoleLog(hello.ptr, hello.len);
         consoleLog(cvss, len);
-        consoleLog(cvss, 4);
-    }
-    const cvss_result = (cvssScore(cvss[0 .. len - 1])) catch types.CVSS{ .version = .CVSS20, .score = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } }; //TODO
-    // return types.CVSS{ .version = .CVSS20, .score = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } }; //TODO
-    const result = std.heap.wasm_allocator.create(types.CVSS) catch {
-        consoleLog("Memory allocation failed".ptr, 25);
-        return null;
-    };
+        const cvss_result = (cvssScore(cvss[0 .. len - 1])) catch types.CVSS{ .version = .CVSS20, .score = .{ .score = 0, .level = types.CVSS_LEVEL.NONE } }; //TODO better error handling
+        const result = std.heap.wasm_allocator.create(types.CVSS) catch {
+            consoleLog("Memory allocation failed".ptr, 25);
+            return null;
+        };
 
-    result.* = cvss_result;
+        result.* = cvss_result;
 
-    return @ptrCast(result);
+        return @ptrCast(result);
+    } else unreachable;
 }
 
 pub fn cvssScore(cvss: []const u8) !types.CVSS {
