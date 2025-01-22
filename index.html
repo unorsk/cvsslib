@@ -4,7 +4,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document</title>
+  <title>CVSSLIB Online</title>
+  <style>
+    body {
+      font-family: monospace;
+    }
+  </style>
 </head>
 
 <body>
@@ -19,7 +24,7 @@
       }
     };
 
-    WebAssembly.instantiateStreaming(fetch("./cvsslib.wasm"), importObject).then(mod => {
+    WebAssembly.instantiateStreaming(fetch("./www/cvsslib.wasm"), importObject).then(mod => {
       console.log(mod.instance);
       const { cvssScoreWasm } = mod.instance.exports;
       window.wasmInstance = mod.instance;
@@ -34,11 +39,6 @@
       memory[ptr + cvssData.length] = 0;
 
       const resultPtr = wasmInstance.exports.cvssScoreWasm(ptr, cvssData.length + 1);
-
-      // window.resultView = new DataView(wasmInstance.exports.memory.buffer);
-      // console.log(window.resultView);
-      // console.log(result);
-
 
       if (resultPtr !== 0) {
         const resultView = new DataView(wasmInstance.exports.memory.buffer, resultPtr);
@@ -55,7 +55,7 @@
         });
 
         // Don't forget to free the allocated memory
-        exports.freeCVSS(resultPtr);
+        wasmInstance.exports.deallocate(resultPtr);
       } else {
         console.error("Failed to allocate memory for CVSS result");
       }
@@ -63,6 +63,10 @@
       wasmInstance.exports.deallocate(ptr, cvssData.length);
     }).catch(console.error);
   </script>
+  <input type="text" id="cvss" />
+  <button onclick="score(document.getElementById('cvss').value);">Score</button>
+  <div id="result"></div>
+
 </body>
 
 </html>
