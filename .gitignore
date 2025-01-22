@@ -2,3 +2,6 @@
 zig-out
 NOTES.md
 .idea
+*.o
+.DS_Store
+ cvss31.js

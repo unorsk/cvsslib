@@ -28,15 +28,40 @@
       const encoder = new TextEncoder();
       const cvssData = encoder.encode(cvss);
 
-      const ptr = wasmInstance.exports.allocate(cvssData.length);
+      const ptr = wasmInstance.exports.allocate(cvssData.length + 1);
       const memory = new Uint8Array(wasmInstance.exports.memory.buffer);
       memory.set(cvssData, ptr);
+      memory[ptr + cvssData.length] = 0;
 
-      const result = wasmInstance.exports.cvssScoreWasm(ptr, cvssData.length);
+      const resultPtr = wasmInstance.exports.cvssScoreWasm(ptr, cvssData.length + 1);
+
+      // window.resultView = new DataView(wasmInstance.exports.memory.buffer);
+      // console.log(window.resultView);
+      // console.log(result);
+
+
+      if (resultPtr !== 0) {
+        const resultView = new DataView(wasmInstance.exports.memory.buffer, resultPtr);
+        const version = resultView.getUint32(0, true);
+        const score = resultView.getFloat32(4, true);
+        const level = resultView.getUint32(8, true);
+
+        console.log("CVSS Result:", {
+          version: version,
+          score: {
+            score: score,
+            level: level
+          }
+        });
+
+        // Don't forget to free the allocated memory
+        exports.freeCVSS(resultPtr);
+      } else {
+        console.error("Failed to allocate memory for CVSS result");
+      }
+
       wasmInstance.exports.deallocate(ptr, cvssData.length);
-
-      console.log(result);
-    })
+    }).catch(console.error);
   </script>
 </body>
 
